@@ -66,7 +66,7 @@ class NPSHApp(tk.Tk):
                   font=("Segoe UI", 18, "bold")).pack(anchor="w")
         ttk.Label(outer, text=f"Developed by {AUTHOR}",
                   font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(2, 2))
-        ttk.Label(outer, text="Pump suction flange method | SI units",
+        ttk.Label(outer, text="Pump suction flange method",
                   font=("Segoe UI", 10)).pack(anchor="w", pady=(0, 12))
 
         fluid = ttk.LabelFrame(outer, text="Fluid properties", padding=12)
