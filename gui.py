@@ -85,8 +85,6 @@ class NPSHApp(tk.Tk):
         self._combo(suction, 4, "Pressure reference", "pressure_type",
                     ["gauge", "absolute"])
         self.atm_entry = self._entry(suction, 5, "Atmospheric pressure", "atmospheric")
-        ttk.Label(suction, text="Atmospheric unit follows suction pressure unit automatically.").grid(
-            row=6, column=0, columnspan=2, sticky="w", pady=4)
         self._entry(suction, 7, "NPSHr [m] (optional)", "npshr")
 
         actions = ttk.Frame(outer)
