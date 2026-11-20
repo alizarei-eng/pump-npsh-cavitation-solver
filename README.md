@@ -26,3 +26,9 @@ python -m unittest discover -s tests
 - IAPWS IF97: https://iapws.org/relguide/IF97-Rev.html
 - GSW/TEOS-10: https://teos-10.github.io/GSW-Python/
 - Sharqawy et al. (2010): https://web.mit.edu/lienhard/www/papers/journal/Thermophysical_properties_of_seawater-DWT-16-354-2010.pdf
+
+## Desktop GUI (Tkinter)
+
+Run `python gui.py` to open the graphical interface. Tkinter is included with most standard Python desktop installations; on some Linux distributions install `python3-tk` separately. The existing CLI remains available via `python main.py`.
+
+The GUI accepts temperature, EC (mS/cm), fluid type, flow, internal pipe diameter, suction flange pressure (absolute or gauge), atmospheric pressure for gauge readings, and optional NPSHr. It displays fluid properties, velocity, vapor pressure, NPSHa, and NPSH margin. For natural seawater, use EC measured at the actual water temperature; EC@25C is rejected until meter-specific correction is available.
