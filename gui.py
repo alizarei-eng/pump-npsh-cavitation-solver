@@ -46,6 +46,7 @@ class NPSHApp(tk.Tk):
         self._build()
         self.vars["pressure_type"].trace_add("write", lambda *_: self._update_state())
         self.vars["fluid"].trace_add("write", lambda *_: self._update_state())
+        self.vars["pressure_unit"].trace_add("write", lambda *_: self._sync_atmospheric_unit())
         self._update_state()
 
     def _build(self):
@@ -80,7 +81,7 @@ class NPSHApp(tk.Tk):
         self._combo(suction, 4, "Pressure reference", "pressure_type",
                     ["gauge", "absolute"])
         self.atm_entry = self._entry(suction, 5, "Atmospheric pressure", "atmospheric")
-        self.atm_unit = self._combo(suction, 6, "Atmospheric pressure unit", "atmospheric_unit",
+        self.atm_unit = self._combo(suction, 6, "Atmospheric pressure unit (auto)", "atmospheric_unit",
                                    ["bar", "psi", "kPa", "Pa"])
         self._entry(suction, 7, "NPSHr [m] (optional)", "npshr")
 
@@ -121,7 +122,24 @@ class NPSHApp(tk.Tk):
     def _update_state(self):
         gauge = self.vars["pressure_type"].get() == "gauge"
         self.atm_entry.configure(state="normal" if gauge else "disabled")
-        self.atm_unit.configure(state="readonly" if gauge else "disabled")
+        self.atm_unit.configure(state="disabled")
+
+    def _sync_atmospheric_unit(self):
+        """Keep atmospheric pressure physically unchanged when suction units change."""
+        new_unit = self.vars["pressure_unit"].get()
+        old_unit = self.vars["atmospheric_unit"].get()
+        if new_unit == old_unit:
+            return
+        try:
+            current = float(self.vars["atmospheric"].get())
+            if not math.isfinite(current):
+                raise ValueError("Non-finite atmospheric pressure")
+            atmospheric_kpa = pressure_to_kpa(current, old_unit)
+        except (ValueError, KeyError):
+            atmospheric_kpa = 101.325
+        converted = atmospheric_kpa / PRESSURE_TO_KPA[new_unit]
+        self.vars["atmospheric"].set(f"{converted:.10g}")
+        self.vars["atmospheric_unit"].set(new_unit)
 
     def _number(self, key, optional=False):
         value = self.vars[key].get().strip()
