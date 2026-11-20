@@ -9,6 +9,18 @@ from core.npsh import calculate
 from core.water_properties import calculate_water_properties
 
 
+PRESSURE_TO_KPA = {"bar": 100.0, "psi": 6.894757293168, "kPa": 1.0, "Pa": 0.001}
+
+
+def pressure_to_kpa(value: float, unit: str) -> float:
+    """Convert pressure magnitude to kPa without changing gauge/absolute reference."""
+    if unit not in PRESSURE_TO_KPA:
+        raise ValueError(f"Unsupported pressure unit: {unit}")
+    if not math.isfinite(value):
+        raise ValueError("Pressure must be finite.")
+    return value * PRESSURE_TO_KPA[unit]
+
+
 class NPSHApp(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -20,11 +32,12 @@ class NPSHApp(tk.Tk):
             "fluid": tk.StringVar(value="seawater"),
             "temperature": tk.StringVar(value="30"),
             "ec": tk.StringVar(value="58"),
-            "ec_mode": tk.StringVar(value="in_situ"),
             "flow": tk.StringVar(value="150"),
             "diameter": tk.StringVar(value="204.6"),
             "pressure": tk.StringVar(value="100"),
             "pressure_type": tk.StringVar(value="gauge"),
+            "pressure_unit": tk.StringVar(value="kPa"),
+            "atmospheric_unit": tk.StringVar(value="kPa"),
             "atmospheric": tk.StringVar(value="101.325"),
             "npshr": tk.StringVar(value=""),
         }
@@ -53,19 +66,21 @@ class NPSHApp(tk.Tk):
         fluid.pack(fill="x", pady=5)
         self._combo(fluid, 0, "Fluid", "fluid", ["freshwater", "seawater"])
         self._entry(fluid, 1, "Temperature [°C]", "temperature")
-        self.ec_entry = self._entry(fluid, 2, "EC [mS/cm]", "ec")
-        self.ec_combo = self._combo(fluid, 3, "EC measurement", "ec_mode",
-                                    ["in_situ", "EC@25C"])
+        self.ec_entry = self._entry(fluid, 2, "EC [mS/cm] (in-situ at water temperature)", "ec")
 
         suction = ttk.LabelFrame(outer, text="Suction conditions", padding=12)
         suction.pack(fill="x", pady=5)
         self._entry(suction, 0, "Flow rate [m³/h]", "flow")
         self._entry(suction, 1, "Pipe internal diameter [mm]", "diameter")
-        self._entry(suction, 2, "Flange suction pressure [kPa]", "pressure")
-        self._combo(suction, 3, "Pressure reference", "pressure_type",
+        self._entry(suction, 2, "Flange suction pressure", "pressure")
+        self._combo(suction, 3, "Suction pressure unit", "pressure_unit",
+                    ["bar", "psi", "kPa", "Pa"])
+        self._combo(suction, 4, "Pressure reference", "pressure_type",
                     ["gauge", "absolute"])
-        self.atm_entry = self._entry(suction, 4, "Atmospheric pressure [kPa]", "atmospheric")
-        self._entry(suction, 5, "NPSHr [m] (optional)", "npshr")
+        self.atm_entry = self._entry(suction, 5, "Atmospheric pressure", "atmospheric")
+        self.atm_unit = self._combo(suction, 6, "Atmospheric pressure unit", "atmospheric_unit",
+                                   ["bar", "psi", "kPa", "Pa"])
+        self._entry(suction, 7, "NPSHr [m] (optional)", "npshr")
 
         actions = ttk.Frame(outer)
         actions.pack(fill="x", pady=(10, 6))
@@ -81,7 +96,7 @@ class NPSHApp(tk.Tk):
         self.output.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
         self._write("Enter operating conditions and click Calculate.\n"
-                    "EC@25C is not supported for seawater without meter-specific compensation.\n"
+                    "For seawater, EC must be measured at actual water temperature.\n"
                     "Pressure must be measured at the pump suction flange.")
 
     def _entry(self, frame, row, label, key):
@@ -100,11 +115,9 @@ class NPSHApp(tk.Tk):
         return combo
 
     def _update_state(self):
-        self.atm_entry.configure(state="normal" if self.vars["pressure_type"].get() == "gauge" else "disabled")
-        seawater = self.vars["fluid"].get() == "seawater"
-        self.ec_combo.configure(state="readonly" if seawater else "disabled")
-        if not seawater:
-            self.vars["ec_mode"].set("in_situ")
+        gauge = self.vars["pressure_type"].get() == "gauge"
+        self.atm_entry.configure(state="normal" if gauge else "disabled")
+        self.atm_unit.configure(state="readonly" if gauge else "disabled")
 
     def _number(self, key, optional=False):
         value = self.vars[key].get().strip()
@@ -129,17 +142,15 @@ class NPSHApp(tk.Tk):
     def _calculate(self):
         try:
             kind = self.vars["fluid"].get()
-            mode = self.vars["ec_mode"].get()
-            if kind == "seawater" and mode != "in_situ":
-                raise ValueError("Seawater requires EC measured at the actual water temperature. "
-                                 "EC@25C conversion needs the meter's compensation algorithm.")
             t = self._number("temperature")
             ec = self._number("ec")
             flow = self._number("flow")
             diameter = self._number("diameter")
-            p = self._number("pressure")
+            p_entered = self._number("pressure")
+            p = pressure_to_kpa(p_entered, self.vars["pressure_unit"].get())
             pt = self.vars["pressure_type"].get()
-            atm = self._number("atmospheric") if pt == "gauge" else None
+            atm = (pressure_to_kpa(self._number("atmospheric"), self.vars["atmospheric_unit"].get())
+                   if pt == "gauge" else None)
             npshr = self._number("npshr", optional=True)
             p_abs = p + atm if pt == "gauge" else p
             if p_abs <= 0:
@@ -172,6 +183,8 @@ class NPSHApp(tk.Tk):
                 lines.append(f"Reference salinity:    {props['absolute_salinity_g_kg']:.3f} g/kg")
             lines += [
                 "", "SUCTION HYDRAULICS",
+                f"Entered suction:       {p_entered:.5g} {self.vars['pressure_unit'].get()} ({pt})",
+                f"Converted suction:     {p:.4f} kPa ({pt})",
                 f"Absolute pressure:     {result['suction_pressure_absolute_kPa']:.3f} kPa",
                 f"Velocity:              {result['velocity_m_s']:.4f} m/s",
                 f"Velocity head:         {result['velocity_head_m']:.4f} m",
