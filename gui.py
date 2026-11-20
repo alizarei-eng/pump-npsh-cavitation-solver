@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import math
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
+from datetime import datetime
 
 from core.npsh import calculate
 from core.water_properties import calculate_water_properties
@@ -41,6 +42,7 @@ class NPSHApp(tk.Tk):
             "atmospheric": tk.StringVar(value="101.325"),
             "npshr": tk.StringVar(value=""),
         }
+        self.report_text = None
         self._build()
         self.vars["pressure_type"].trace_add("write", lambda *_: self._update_state())
         self.vars["fluid"].trace_add("write", lambda *_: self._update_state())
@@ -85,7 +87,9 @@ class NPSHApp(tk.Tk):
         actions = ttk.Frame(outer)
         actions.pack(fill="x", pady=(10, 6))
         ttk.Button(actions, text="Calculate", command=self._calculate).pack(side="left", padx=(0, 8))
-        ttk.Button(actions, text="Clear results", command=self._clear).pack(side="left")
+        ttk.Button(actions, text="Clear results", command=self._clear).pack(side="left", padx=(0, 8))
+        self.save_button = ttk.Button(actions, text="Export TXT", command=self._export_txt, state="disabled")
+        self.save_button.pack(side="left")
 
         results = ttk.LabelFrame(outer, text="Results", padding=10)
         results.pack(fill="both", expand=True, pady=5)
@@ -137,9 +141,33 @@ class NPSHApp(tk.Tk):
         self.output.configure(state="disabled")
 
     def _clear(self):
+        self.report_text = None
+        self.save_button.configure(state="disabled")
         self._write("")
 
+    def _export_txt(self):
+        if self.report_text is None:
+            messagebox.showwarning("No results", "Calculate NPSH before exporting.")
+            return
+        filename = filedialog.asksaveasfilename(
+            title="Save NPSH report",
+            defaultextension=".txt",
+            initialfile=f"NPSH_Report_{datetime.now():%Y%m%d_%H%M%S}.txt",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+        )
+        if not filename:
+            return
+        try:
+            with open(filename, "w", encoding="utf-8") as handle:
+                handle.write(self.report_text)
+            messagebox.showinfo("Export successful", "Report saved successfully.")
+        except OSError as exc:
+            messagebox.showerror("Export failed", str(exc))
+
+
     def _calculate(self):
+        self.report_text = None
+        self.save_button.configure(state="disabled")
         try:
             kind = self.vars["fluid"].get()
             t = self._number("temperature")
@@ -199,7 +227,40 @@ class NPSHApp(tk.Tk):
             lines += ["", result["assessment"]]
             if props["warnings"]:
                 lines += ["", "NOTES:"] + ["- " + w for w in props["warnings"]]
+            report_lines = [
+                "PUMP NPSH & CAVITATION SOLVER",
+                "=" * 54,
+                f"Report generated: {datetime.now():%Y-%m-%d %H:%M:%S}",
+                "",
+                "INPUT DATA",
+                f"Fluid:                 {kind}",
+                f"Temperature:           {t:.2f} C",
+                f"EC:                    {ec:.3f} mS/cm (in-situ)",
+                f"Flow rate:             {flow:.4f} m3/h",
+                f"Internal diameter:     {diameter:.4f} mm",
+                f"Suction pressure:      {p_entered:.6g} {self.vars['pressure_unit'].get()} ({pt})",
+            ]
+            if pt == "gauge":
+                report_lines.append(
+                    f"Atmospheric pressure:  {self._number('atmospheric'):.6g} "
+                    f"{self.vars['atmospheric_unit'].get()}"
+                )
+            report_lines.append(
+                f"NPSHr input:           {npshr:.4f} m" if npshr is not None
+                else "NPSHr input:           Not provided"
+            )
+            report_lines += ["", "CALCULATED RESULTS", "=" * 54] + lines
+            report_lines += [
+                "", "CALCULATION BASIS",
+                "NPSHa = (P_suction_abs - P_vapor)/(rho*g) + V^2/(2*g)",
+                "g = 9.80665 m/s2; velocity coefficient alpha = 1.",
+                "Pressure is measured at the pump suction flange.",
+                "Suction-line losses must not be subtracted a second time.",
+                "NPSHa >= NPSHr does not guarantee cavitation-free operation.",
+            ]
+            self.report_text = "\n".join(report_lines) + "\n"
             self._write("\n".join(lines))
+            self.save_button.configure(state="normal")
         except (ValueError, ArithmeticError, ImportError, NotImplementedError) as exc:
             messagebox.showerror("Calculation error", str(exc))
 
