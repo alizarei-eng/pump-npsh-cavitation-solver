@@ -10,6 +10,8 @@ from core.npsh import calculate
 from core.water_properties import calculate_water_properties
 
 
+AUTHOR = "Ali_zarei_eng"
+
 PRESSURE_TO_KPA = {"bar": 100.0, "psi": 6.894757293168, "kPa": 1.0, "Pa": 0.001}
 
 
@@ -62,6 +64,8 @@ class NPSHApp(tk.Tk):
         outer.pack(fill="both", expand=True)
         ttk.Label(outer, text="PUMP NPSH & CAVITATION SOLVER",
                   font=("Segoe UI", 18, "bold")).pack(anchor="w")
+        ttk.Label(outer, text=f"Developed by {AUTHOR}",
+                  font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(2, 2))
         ttk.Label(outer, text="Pump suction flange method | SI units",
                   font=("Segoe UI", 10)).pack(anchor="w", pady=(0, 12))
 
@@ -81,8 +85,8 @@ class NPSHApp(tk.Tk):
         self._combo(suction, 4, "Pressure reference", "pressure_type",
                     ["gauge", "absolute"])
         self.atm_entry = self._entry(suction, 5, "Atmospheric pressure", "atmospheric")
-        self.atm_unit = self._combo(suction, 6, "Atmospheric pressure unit (auto)", "atmospheric_unit",
-                                   ["bar", "psi", "kPa", "Pa"])
+        ttk.Label(suction, text="Atmospheric unit follows suction pressure unit automatically.").grid(
+            row=6, column=0, columnspan=2, sticky="w", pady=4)
         self._entry(suction, 7, "NPSHr [m] (optional)", "npshr")
 
         actions = ttk.Frame(outer)
@@ -122,7 +126,6 @@ class NPSHApp(tk.Tk):
     def _update_state(self):
         gauge = self.vars["pressure_type"].get() == "gauge"
         self.atm_entry.configure(state="normal" if gauge else "disabled")
-        self.atm_unit.configure(state="disabled")
 
     def _sync_atmospheric_unit(self):
         """Keep atmospheric pressure physically unchanged when suction units change."""
@@ -216,6 +219,8 @@ class NPSHApp(tk.Tk):
                 atmospheric_pressure_kPa=atm, density_kg_m3=props["density_kg_m3"],
                 vapor_pressure_MPa=pv, npshr_m=npshr)
             lines = [
+                f"Developed by {AUTHOR}",
+                "",
                 "FLUID PROPERTIES",
                 f"Fluid:                 {kind}",
                 f"Temperature:           {t:.2f} °C",
@@ -247,6 +252,7 @@ class NPSHApp(tk.Tk):
                 lines += ["", "NOTES:"] + ["- " + w for w in props["warnings"]]
             report_lines = [
                 "PUMP NPSH & CAVITATION SOLVER",
+                f"Developed by {AUTHOR}",
                 "=" * 54,
                 f"Report generated: {datetime.now():%Y-%m-%d %H:%M:%S}",
                 "",
