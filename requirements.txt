@@ -1,1 +1,2 @@
-iapws>=1.5\ngsw>=3.6\n
+iapws>=1.5
+gsw>=3.6
